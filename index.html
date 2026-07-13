@@ -61,6 +61,7 @@
   #pageCanvas{display:block}
   #annoLayer{position:absolute;inset:0;overflow:hidden}
   #annoLayer.tool-text,#annoLayer.tool-stamp,#annoLayer.tool-line,#annoLayer.tool-circle,#annoLayer.tool-range,#annoLayer.tool-box{cursor:crosshair}
+  #annoLayer.tool-erase{cursor:cell}
   #penSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   #penSvg path,#penSvg ellipse{stroke:var(--aka);fill:none;stroke-linecap:round;stroke-linejoin:round}
 
@@ -94,9 +95,13 @@
   #palTabs button.on{background:var(--shu);color:#fff}
   #dictSearch{width:100%;border:1px solid var(--line);border-radius:4px;padding:7px 9px;font-size:12px;font-family:var(--sans);margin-bottom:8px}
   #dictSearch:focus{outline:2px solid var(--shu);outline-offset:-1px}
-  #dictIndex{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px}
-  #dictIndex button{background:#fff;border:1px solid var(--line);color:var(--graphite);border-radius:3px;padding:3px 7px;font-size:11px;font-family:var(--min)}
+  #dictIndex{margin-bottom:8px}
+  #dictIndex button{background:#fff;border:1px solid var(--line);color:var(--graphite);border-radius:3px;font-size:10.5px;font-family:var(--min);padding:3px 0;text-align:center}
   #dictIndex button:hover{border-color:var(--shu);color:var(--shu)}
+  #dictIndex button.off{border-color:transparent;color:#d6d3ca;pointer-events:none;background:transparent}
+  #dictIndexSp{display:flex;gap:3px;margin-bottom:4px}
+  #dictIndexSp button{flex:1;padding:4px 0;font-size:11px}
+  #dictIndexGrid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(5,auto);gap:2px}
   .dsec{font-family:var(--min);font-size:12px;letter-spacing:.3em;color:var(--ink);background:var(--desk);border-left:3px solid var(--shu);padding:4px 8px;margin-top:8px;border-radius:2px}
   #dictList{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
   .dent{border:1px solid var(--line);border-radius:4px;padding:6px 8px;cursor:pointer;background:#fff;text-align:left;font-family:var(--sans)}
@@ -156,6 +161,7 @@
     <button class="tbtn active" data-tool="pen" title="ペン・囲み (⌘P)">ペン</button>
     <button class="tbtn" data-tool="circle" title="マル囲み (O)">マル</button>
     <button class="tbtn" data-tool="range" title="範囲記号 (⌘T)">｜ー｜</button>
+    <button class="tbtn" data-tool="erase" title="消しゴム (E)">消しゴム</button>
     <button class="tbtn" id="btnUndo" title="元に戻す (Ctrl+Z)">戻す</button>
   </div>
   <div class="tbgroup">
@@ -242,7 +248,7 @@ let pdfDoc = null, pageCount = 0, currentPage = 1, zoom = 1.0;
 let fitScale = 1;   // 表示エリア幅にページを収める倍率(=100%の基準)
 let fileName = "";
 let annotations = {};   // page -> [ {id, type:'text'|'pen', x, y, text, size, vertical, points:[[x,y]..], width} ]  座標は0〜1正規化
-let stamps = ["2Q上げ","1Q上げ","2Q下げ","1Q下げ","リュウミンU","新ゴB","ハッピネスEB","トル","トルツメ","2ライン","3ライン","4ライン","字送りベタ","ルビ：","統一→"];
+let stamps = ["2Q上げ","1Q上げ","2Q下げ","1Q下げ","リュウミンU","新ゴB","ハッピネスEB","トル","トルツメ","1ライン","2ライン","3ライン","4ライン","字送りベタ","ルビ：","統一→"];
 let tool = "pen";
 let armedStamp = null;
 let selectedId = null;
@@ -406,6 +412,7 @@ document.addEventListener("keydown", e=>{
   if(e.key==="p"||e.key==="P") setTool("pen");
   if(e.key==="o"||e.key==="O") setTool("circle");
   if(e.key==="r"||e.key==="R") setTool("range");
+  if(e.key==="e"||e.key==="E") setTool("erase");
   if((e.key==="Delete"||e.key==="Backspace") && selectedId){ deleteAnno(selectedId); e.preventDefault(); }
 });
 
@@ -522,18 +529,25 @@ function armText(t){
   toast(`「${t}」を選択中 — ページ上をタップで配置`);
 }
 
+const GOJUON_COLS = [
+  ["あ","い","う","え","お"],["か","き","く","け","こ"],["さ","し","す","せ","そ"],
+  ["た","ち","つ","て","と"],["な","に","ぬ","ね","の"],["は","ひ","ふ","へ","ほ"],
+  ["ま","み","む","め","も"],["や","","ゆ","","よ"],["ら","り","る","れ","ろ"],["わ","","","",""]
+];
 function renderDict(filter=""){
   const list = $("dictList"); list.innerHTML = "";
   const idx = $("dictIndex"); idx.innerHTML = "";
   const f = filter.trim();
   const groups = [];
   for(const d of DICT){ if(!groups.includes(d.g)) groups.push(d.g); }
+  const secEl = {};
   for(const g of groups){
     const items = DICT.filter(d=> d.g===g && (!f || (d.ok+(d.ng||"")+(d.note||"")).includes(f)));
     if(!items.length) continue;
     const h = document.createElement("div");
     h.className = "dsec"; h.textContent = "■ " + g;
     list.appendChild(h);
+    secEl[g] = h;
     for(const d of items){
       const b = document.createElement("button");
       b.className = "dent";
@@ -543,11 +557,29 @@ function renderDict(filter=""){
       b.onclick = ()=> armText(d.ok);
       list.appendChild(b);
     }
-    const ib = document.createElement("button");
-    ib.textContent = g==="呼称・用語" ? "呼称" : (g==="数字ほか" ? "数字" : g);
-    ib.onclick = ()=> h.scrollIntoView({behavior:"smooth", block:"start"});
-    idx.appendChild(ib);
   }
+  /* 呼称・数字の目次 */
+  const sp = document.createElement("div"); sp.id = "dictIndexSp";
+  for(const g of ["呼称・用語","数字ほか"]){
+    const b = document.createElement("button");
+    b.textContent = g;
+    if(secEl[g]) b.onclick = ()=> secEl[g].scrollIntoView({behavior:"smooth", block:"start"});
+    else b.className = "off";
+    sp.appendChild(b);
+  }
+  idx.appendChild(sp);
+  /* 五十音表の目次:縦にあいうえお、次の列にかきくけこ… */
+  const grid = document.createElement("div"); grid.id = "dictIndexGrid";
+  for(const col of GOJUON_COLS){
+    for(const k of col){
+      const b = document.createElement("button");
+      b.textContent = k || "・";
+      if(k && secEl[k]) b.onclick = ()=> secEl[k].scrollIntoView({behavior:"smooth", block:"start"});
+      else b.className = "off";
+      grid.appendChild(b);
+    }
+  }
+  idx.appendChild(grid);
 }
 renderDict();
 $("dictSearch").oninput = e=> renderDict(e.target.value);
@@ -618,7 +650,48 @@ function positionAnnoTools(){
 
 let drag = null, penPts = null, penPath = null, isLeaderLine = false;
 let circ = null, circEl = null, fromRubyFlow = false, lastStampId = null;
-let rangeStart = null, rangePrev = null;
+let rangeStart = null, rangePrev = null, erasing = false;
+
+/* 消しゴム:座標に触れている注釈を1つ削除 */
+function segDist(x, y, p, q, W, H){
+  const ax=p[0]*W, ay=p[1]*H, bx=q[0]*W, by=q[1]*H, px=x*W, py=y*H;
+  const dx=bx-ax, dy=by-ay; const L2=dx*dx+dy*dy;
+  let t = L2 ? ((px-ax)*dx+(py-ay)*dy)/L2 : 0; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(ax+t*dx), py-(ay+t*dy));
+}
+function eraseAt(x, y){
+  const W = pageCanvas.width, H = pageCanvas.height;
+  const th = 9;
+  const arr = pageAnnos();
+  for(let i=arr.length-1; i>=0; i--){
+    const a = arr[i];
+    let hit = false;
+    if(a.type==="pen"){
+      for(let j=0; j<a.points.length-1 && !hit; j++){
+        if(segDist(x, y, a.points[j], a.points[j+1], W, H) < th) hit = true;
+      }
+    } else if(a.type==="ellipse"){
+      const cx=a.x+a.w/2, cy=a.y+a.h/2;
+      const rx=Math.max(a.w/2,1e-6), ry=Math.max(a.h/2,1e-6);
+      const v = Math.pow((x-cx)/rx,2) + Math.pow((y-cy)/ry,2);
+      if(v <= 1.2) hit = true;
+    } else if(a.type==="range"){
+      const tick = RANGE_TICK*H, left = a.x*W, top = a.y*H;
+      const w = a.vertical!==false ? tick : a.len*H;
+      const h = a.vertical!==false ? a.len*H : tick;
+      if(x*W >= left-th && x*W <= left+w+th && y*H >= top-th && y*H <= top+h+th) hit = true;
+    } else {
+      const el = layer.querySelector(`.anno[data-id="${a.id}"]`);
+      if(el){
+        const px=x*W, py=y*H;
+        if(px >= el.offsetLeft-4 && px <= el.offsetLeft+el.offsetWidth+4 &&
+           py >= el.offsetTop-4 && py <= el.offsetTop+el.offsetHeight+4) hit = true;
+      }
+    }
+    if(hit){ deleteAnno(a.id); return true; }
+  }
+  return false;
+}
 
 /* 「)」カップを線の先に付けるスタンプ */
 const CAP_STAMPS = ["2Q上げ","1Q上げ","2Q下げ","1Q下げ","リュウミンU","新ゴB","ハッピネスEB"];
@@ -658,7 +731,9 @@ function addCap(pts){
   const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
   const nx = -dy, ny = dx;
   const r = H*0.016*capScale;
-  const P0 = [E[0]+nx*r, E[1]+ny*r], P2 = [E[0]-nx*r, E[1]-ny*r], C = [E[0]-dx*r*1.6, E[1]-dy*r*1.6];
+  // カップの弧の頂点が線の終端にちょうど重なる位置(頂点は中心から0.8r後方にできる)
+  const Ex = E[0] + dx*r*0.75, Ey = E[1] + dy*r*0.75;
+  const P0 = [Ex+nx*r, Ey+ny*r], P2 = [Ex-nx*r, Ey-ny*r], C = [Ex-dx*r*1.6, Ey-dy*r*1.6];
   const cap = [];
   for(let i=0; i<=10; i++){
     const t = i/10, u = 1-t;
@@ -715,6 +790,13 @@ layer.addEventListener("pointerdown", e=>{
     e.preventDefault(); return;
   }
 
+  if(tool==="erase"){
+    erasing = true;
+    eraseAt(x, y);
+    layer.setPointerCapture(e.pointerId);
+    e.preventDefault(); return;
+  }
+
   if(tool==="pen"){
     penPts = [[x,y]];
     penPath = document.createElementNS("http://www.w3.org/2000/svg","path");
@@ -748,6 +830,7 @@ layer.addEventListener("pointermove", e=>{
     rangePrev.setAttribute("d",`M${cx-t} ${y0} L${cx+t} ${y0} M${cx} ${y0} L${cx} ${y1} M${cx-t} ${y1} L${cx+t} ${y1}`);
     return;
   }
+  if(erasing){ eraseAt(x, y); return; }
   if(penPts){
     penPts.push([x,y]);
     const W=pageCanvas.width, H=pageCanvas.height;
@@ -764,6 +847,7 @@ layer.addEventListener("pointermove", e=>{
 });
 
 layer.addEventListener("pointerup", e=>{
+  if(erasing){ erasing = false; return; }
   if(penPts){
     const wasLeader = isLeaderLine; isLeaderLine = false;
     if(penPts.length>2){
