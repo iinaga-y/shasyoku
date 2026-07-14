@@ -23,10 +23,10 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{font-family:var(--sans);background:var(--desk);color:var(--graphite);overflow:hidden;font-size:13px}
+  body{font-family:var(--sans);background:var(--desk);color:var(--graphite);overflow:hidden;font-size:13px;display:flex;flex-direction:column}
 
   /* ---------- 上部バー ---------- */
-  #topbar{height:52px;background:var(--ink);color:#e8e6e0;display:flex;align-items:center;gap:10px;padding:0 14px;flex-wrap:nowrap}
+  #topbar{height:52px;flex-shrink:0;background:var(--ink);color:#e8e6e0;display:flex;align-items:center;gap:10px;padding:0 14px;flex-wrap:nowrap}
   #topbar .brand{font-family:var(--min);font-size:19px;letter-spacing:.35em;color:#f0ede6;margin-right:2px;white-space:nowrap}
   #topbar .brand b{color:var(--shu);font-weight:600}
   #topbar .sub{font-size:10px;color:#8f8d86;letter-spacing:.12em;margin-right:8px;white-space:nowrap}
@@ -45,7 +45,7 @@
   #zoomPct{color:#a5a39c;font-family:var(--mono);font-size:11px;margin-left:1px}
 
   /* ---------- 本体3カラム ---------- */
-  #main{display:flex;height:calc(100% - 52px)}
+  #main{display:flex;flex:1;min-height:0}
 
   /* サムネイル */
   #thumbs{width:118px;background:var(--rail);overflow-y:auto;padding:10px 8px;flex-shrink:0}
@@ -72,13 +72,6 @@
   #annoLayer.tool-select .anno{cursor:move}
   .anno.boxed{border:1.5px solid var(--aka);padding:3px 4px}
   .anno.boxed.selected{border-style:dashed;border-color:var(--shu)}
-  .anno.check{background:rgba(255,193,7,.28);border:1.5px solid #e6a700;padding:0;min-width:6px;min-height:6px;border-radius:2px;white-space:normal}
-  .anno.check.selected{border-color:var(--shu)}
-  .anno.check .cklabel{position:absolute;left:-1px;top:-17px;background:#e6a700;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:2px;white-space:nowrap;line-height:1.4}
-  #btnScan{width:100%;background:#e6a700;color:#fff;padding:8px;border-radius:4px;letter-spacing:.1em}
-  #scanStatus{font-size:10.5px;color:#8f8d86;margin-top:5px;line-height:1.5;min-height:1em}
-  #btnClearChecks{width:100%;margin-top:5px;background:none;border:1px solid var(--line);color:#8f8d86;padding:6px;border-radius:4px}
-  #btnClearChecks:hover{border-color:#e6a700;color:#e6a700}
   .anno.range{padding:0;min-width:0;min-height:0;border:none;border-radius:0}
   .anno.range::before,.anno.range::after{content:"";position:absolute;background:var(--aka)}
   .anno.range.v{background:linear-gradient(to right,transparent calc(50% - 1.25px),var(--aka) calc(50% - 1.25px),var(--aka) calc(50% + 1.25px),transparent calc(50% + 1.25px))}
@@ -148,6 +141,17 @@
   #empty button{background:var(--shu);color:#fff;padding:10px 22px;font-size:13px;letter-spacing:.1em}
 
   #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#e8e6e0;padding:9px 18px;border-radius:5px;font-size:12px;display:none;z-index:99}
+
+  /* ---------- iPad縦画面などの狭い画面 ---------- */
+  @media (max-width:1024px){
+    #topbar{flex-wrap:wrap;height:auto;min-height:48px;padding:6px 8px;row-gap:4px;column-gap:6px}
+    #topbar .sub{display:none}
+    #fileName{max-width:90px}
+    .tbtn{padding:7px 8px;font-size:11.5px}
+    #thumbs{width:72px;padding:8px 5px}
+    #palette{width:216px;padding:0 9px 9px}
+    #viewerWrap{padding:10px}
+  }
   @media (prefers-reduced-motion:no-preference){
     .stamp,.tbtn{transition:all .12s}
   }
@@ -163,11 +167,8 @@
   </div>
   <div class="tbgroup">
     <button class="tbtn" data-tool="select" title="選択・移動 (V)">選択</button>
-    <button class="tbtn" data-tool="text" title="赤字テキスト (T)">赤字</button>
-    <button class="tbtn" data-tool="box" title="テキスト枠 (B)">テキスト枠</button>
-    <button class="tbtn active" data-tool="pen" title="ペン・囲み (⌘P)">ペン</button>
-    <button class="tbtn" data-tool="circle" title="マル囲み (O)">マル</button>
-    <button class="tbtn" data-tool="range" title="範囲記号 (⌘T)">｜ー｜</button>
+    <button class="tbtn" data-tool="box" title="テキスト (T)">テキスト</button>
+    <button class="tbtn active" data-tool="pen" title="ペン (⌘P)">ペン</button>
     <button class="tbtn" data-tool="erase" title="消しゴム (E)">消しゴム</button>
     <button class="tbtn" id="btnUndo" title="元に戻す (Ctrl+Z)">戻す</button>
   </div>
@@ -232,12 +233,7 @@
       <div id="dictIndex"></div>
       <div id="dictList"></div>
       <div id="checkBox">
-        <h3>自動スキャン</h3>
-        <div class="hint">PDF全ページを統一表記表と照合し、要修正箇所を黄色マーカーで表示します。マーカーは画面表示のみで、書き出しPDFには含まれません。</div>
-        <button id="btnScan">PDFを自動スキャン</button>
-        <div id="scanStatus"></div>
-        <button id="btnClearChecks">マーカーを全て消す</button>
-        <h3 style="margin-top:14px">テキスト照合</h3>
+        <h3>テキスト照合</h3>
         <div class="hint">セリフのテキストを貼り付けると、×表記(要修正)を自動で洗い出します。</div>
         <textarea id="checkText" placeholder="ここにセリフのテキストを貼り付け"></textarea>
         <button id="btnCheck">×表記をチェック</button>
@@ -300,13 +296,6 @@ $("fileInput").onchange = async e => {
     await renderPage(1);
     toast(`${pageCount}ページを読み込みました`);
     buildThumbs();
-    /* 読み込み後、統一表記の自動チェックを提案 */
-    setTimeout(()=>{
-      if(confirm("統一表記の自動チェックを実行しますか?\n\n画像PDFの場合はOCR(文字認識)で読み取ります。スキャン中も朱入れ作業は続けられます。")){
-        $("tabDict").click();
-        runScan(true);
-      }
-    }, 400);
   }catch(err){
     console.error(err);
     alert("PDFの読み込みに失敗しました:\n" + (err && err.message ? err.message : err) + "\n\niPadの場合は、ファイルの「クイックルック(プレビュー)」ではなく、Safariでこのツールを開いてからPDFを選んでください。");
@@ -392,19 +381,6 @@ function drawAnnos(){
       else{ div.style.width = (a.len*H)+"px"; div.style.height = tick+"px"; }
       div.dataset.id = a.id;
       layer.appendChild(div);
-    } else if(a.type==="check"){
-      const div = document.createElement("div");
-      div.className = "anno check" + (a.id===selectedId ? " selected" : "");
-      div.style.left = (a.x*W)+"px";
-      div.style.top = (a.y*H)+"px";
-      div.style.width = Math.max(8, a.w*W)+"px";
-      div.style.height = Math.max(8, a.h*H)+"px";
-      div.dataset.id = a.id;
-      const lb = document.createElement("span");
-      lb.className = "cklabel";
-      lb.textContent = "×" + a.ng + "→" + a.ok;
-      div.appendChild(lb);
-      layer.appendChild(div);
     } else {
       const div = document.createElement("div");
       div.className = "anno" + (a.vertical ? " vertical" : "") + (a.boxed ? " boxed" : "") + (a.id===selectedId ? " selected" : "");
@@ -435,16 +411,13 @@ document.addEventListener("keydown", e=>{
   if(e.metaKey || e.ctrlKey){
     const k = e.key.toLowerCase();
     if(k==="p"){ e.preventDefault(); setTool("pen"); return; }
-    if(k==="t"){ e.preventDefault(); setTool("range"); return; }
+    if(k==="t"){ e.preventDefault(); setTool("box"); return; }
     if(k==="z"){ e.preventDefault(); undo(); return; }
     return;
   }
   if(e.key==="v"||e.key==="V") setTool("select");
-  if(e.key==="t"||e.key==="T") setTool("text");
-  if(e.key==="b"||e.key==="B") setTool("box");
+  if(e.key==="t"||e.key==="T") setTool("box");
   if(e.key==="p"||e.key==="P") setTool("pen");
-  if(e.key==="o"||e.key==="O") setTool("circle");
-  if(e.key==="r"||e.key==="R") setTool("range");
   if(e.key==="e"||e.key==="E") setTool("erase");
   if((e.key==="Delete"||e.key==="Backspace") && selectedId){ deleteAnno(selectedId); e.preventDefault(); }
 });
@@ -647,165 +620,6 @@ $("btnCheck").onclick = ()=>{
     : "×表記は見つかりませんでした";
 };
 
-/* ---------------- PDF自動スキャン ---------------- */
-let scanning = false;
-function setScanStatus(msg){ $("scanStatus").textContent = msg; }
-function addCheckMark(p, x, y, w, h, ng, ok){
-  (annotations[p] || (annotations[p]=[])).push({ id:"a"+(idSeq++), type:"check", x, y, w, h, ng, ok });
-}
-function ngList(){
-  const out = [];
-  for(const d of DICT){
-    if(!d.ng) continue;
-    for(let ng of d.ng.split(/[・、\/\s]+/)){
-      ng = ng.trim();
-      if(!ng || ng.includes("○")) continue;
-      out.push({ng, ok:d.ok, note:d.note||""});
-    }
-  }
-  return out;
-}
-function scanTextItems(vp1, tc, p, results){
-  let full = ""; const map = [];
-  for(let i=0; i<tc.items.length; i++){
-    const s = tc.items[i].str || "";
-    for(const ch of s){ full += ch; map.push(i); }
-  }
-  if(!full) return;
-  for(const e of ngList()){
-    let i = 0;
-    while((i = full.indexOf(e.ng, i)) !== -1 && results.length < 600){
-      const it = tc.items[map[i]];
-      const [vx, vy] = vp1.convertToViewportPoint(it.transform[4], it.transform[5]);
-      const fs = Math.hypot(it.transform[2], it.transform[3]) || 12;
-      addCheckMark(p,
-        Math.max(0, vx/vp1.width - 0.002),
-        Math.max(0, (vy - fs)/vp1.height),
-        Math.max(it.width || fs, fs)/vp1.width,
-        (fs*1.5)/vp1.height,
-        e.ng, e.ok);
-      results.push({page:p, ng:e.ng, ok:e.ok});
-      i += e.ng.length;
-    }
-  }
-}
-async function loadTesseract(){
-  if(window.Tesseract) return;
-  await new Promise((res, rej)=>{
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-    s.onload = res;
-    s.onerror = ()=> rej(new Error("OCRライブラリを読み込めませんでした。通信環境を確認してください"));
-    document.head.appendChild(s);
-  });
-}
-async function ocrScan(results){
-  setScanStatus("OCRを準備中…(初回は認識データの取得に1〜2分かかることがあります)");
-  await loadTesseract();
-  const worker = await Tesseract.createWorker(["jpn","jpn_vert"], 1, {
-    logger: m => { if(m.status==="recognizing text") setScanStatus(`OCR認識中… ${Math.round(m.progress*100)}%(${ocrScan._p}/${pageCount}ページ)`); }
-  });
-  const ngs = ngList().filter(e => e.ng.length >= 2);  // OCRでは単漢字は誤検出が多いため除外
-  try{
-    for(let p=1; p<=pageCount; p++){
-      ocrScan._p = p;
-      setScanStatus(`OCRスキャン中… ${p}/${pageCount}ページ`);
-      const page = await pdfDoc.getPage(p);
-      const base = page.getViewport({scale:1});
-      const sc = Math.min(2, Math.sqrt(6000000/(base.width*base.height)));
-      const vp = page.getViewport({scale:sc});
-      const c = document.createElement("canvas");
-      c.width = vp.width; c.height = vp.height;
-      await page.render({canvasContext:c.getContext("2d"), viewport:vp}).promise;
-      const {data} = await worker.recognize(c);
-      for(const w of (data.words||[])){
-        const t = (w.text||"").trim();
-        if(!t || !w.bbox) continue;
-        for(const e of ngs){
-          if(t.includes(e.ng) && results.length < 600){
-            addCheckMark(p,
-              w.bbox.x0/vp.width, w.bbox.y0/vp.height,
-              (w.bbox.x1-w.bbox.x0)/vp.width, (w.bbox.y1-w.bbox.y0)/vp.height,
-              e.ng, e.ok);
-            results.push({page:p, ng:e.ng, ok:e.ok});
-          }
-        }
-      }
-      if(p===currentPage) drawAnnos();
-    }
-  } finally {
-    await worker.terminate();
-  }
-}
-function renderScanResults(results){
-  const out = $("checkResult"); out.innerHTML = "";
-  refreshThumbMarks();
-  if(currentPage) drawAnnos();
-  $("tabDict").click();
-  if(!results.length){
-    $("checkSummary").textContent = "×表記は検出されませんでした(OCRの場合、検出漏れの可能性もあるため目視確認は併用してください)";
-    setScanStatus("");
-    toast("スキャン完了:×表記は検出されませんでした");
-    return;
-  }
-  $("checkSummary").textContent = `${results.length}件を検出し、黄色マーカーで表示しました(タップでそのページへ)。マーカーは書き出しPDFには含まれません。`;
-  setScanStatus("");
-  toast(`スキャン完了:${results.length}件の要修正候補を検出しました`);
-  for(const r of results){
-    const div = document.createElement("div");
-    div.className = "hit";
-    div.style.cursor = "pointer";
-    div.innerHTML = `P${r.page}　<b>×${esc(r.ng)}</b> → <span class="fix">○${esc(r.ok)}</span>`;
-    div.onclick = ()=> renderPage(r.page);
-    out.appendChild(div);
-  }
-}
-async function runScan(autoOcr = false){
-  if(!pdfDoc){ toast("先にPDFを開いてください"); return; }
-  if(scanning) return;
-  scanning = true;
-  $("btnScan").disabled = true;
-  try{
-    /* 既存のチェックマーカーをクリアしてから */
-    for(const p in annotations) annotations[p] = annotations[p].filter(a=>a.type!=="check");
-    const results = [];
-    let textFound = false;
-    for(let p=1; p<=pageCount; p++){
-      setScanStatus(`文字データを確認中… ${p}/${pageCount}`);
-      const page = await pdfDoc.getPage(p);
-      const tc = await page.getTextContent();
-      if(tc.items && tc.items.length){
-        textFound = true;
-        scanTextItems(page.getViewport({scale:1}), tc, p, results);
-      }
-    }
-    if(!textFound){
-      const ok = autoOcr || confirm("このPDFには文字データが含まれていません(画像PDF)。\nOCR(文字認識)でスキャンしますか?\n\n・通信環境が必要です(初回は認識データを取得します)\n・漫画の書体や縦書きでは検出漏れ・誤検出があります。補助としてお使いください");
-      if(ok){ await ocrScan(results); }
-      else { setScanStatus(""); scanning=false; $("btnScan").disabled=false; return; }
-    }
-    renderScanResults(results);
-  }catch(err){
-    console.error(err);
-    setScanStatus("");
-    alert("スキャンに失敗しました: " + (err && err.message ? err.message : err));
-  }
-  scanning = false;
-  $("btnScan").disabled = false;
-}
-$("btnScan").onclick = ()=> runScan(false);
-$("btnClearChecks").onclick = ()=>{
-  let n = 0;
-  for(const p in annotations){
-    const before = annotations[p].length;
-    annotations[p] = annotations[p].filter(a=>a.type!=="check");
-    n += before - annotations[p].length;
-  }
-  drawAnnos(); refreshThumbMarks();
-  $("checkResult").innerHTML = ""; $("checkSummary").textContent = "";
-  toast(n ? `${n}件のマーカーを消去しました` : "マーカーはありません");
-};
-
 /* ---------------- 注釈の追加・選択・移動 ---------------- */
 function normPos(e){
   const r = layer.getBoundingClientRect();
@@ -843,6 +657,45 @@ function positionAnnoTools(){
 let drag = null, penPts = null, penPath = null, isLeaderLine = false;
 let circ = null, circEl = null, fromRubyFlow = false, lastStampId = null;
 let rangeStart = null, rangePrev = null, erasing = false;
+
+/* 2本指ジェスチャ(ピンチズーム+パン) */
+const touches = new Map();
+let pinch = null;
+function cancelStroke(){
+  if(penPts){ if(penPath) penPath.remove(); penPts=null; penPath=null; isLeaderLine=false; }
+  if(circ){ if(circEl) circEl.remove(); circ=null; circEl=null; }
+  if(rangeStart){ if(rangePrev) rangePrev.remove(); rangeStart=null; rangePrev=null; }
+  drag = null; erasing = false;
+}
+function startPinch(){
+  cancelStroke();
+  const pts = [...touches.values()];
+  pinch = {
+    d0: Math.max(1, Math.hypot(pts[0][0]-pts[1][0], pts[0][1]-pts[1][1])),
+    mid: [(pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2],
+    ratio: 1
+  };
+  pageBox.style.transformOrigin = "center center";
+}
+function movePinch(){
+  if(!pinch) return;
+  const pts = [...touches.values()];
+  if(pts.length < 2) return;
+  const d = Math.max(1, Math.hypot(pts[0][0]-pts[1][0], pts[0][1]-pts[1][1]));
+  const mid = [(pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2];
+  pinch.ratio = Math.max(0.3, Math.min(4, d/pinch.d0));
+  pageBox.style.transform = `scale(${pinch.ratio})`;
+  const wrap = $("viewerWrap");
+  wrap.scrollLeft -= (mid[0] - pinch.mid[0]);
+  wrap.scrollTop  -= (mid[1] - pinch.mid[1]);
+  pinch.mid = mid;
+}
+function endPinch(){
+  if(!pinch) return;
+  const r = pinch.ratio; pinch = null;
+  pageBox.style.transform = "";
+  if(Math.abs(r-1) > 0.03) applyZoom(zoom*100*r);
+}
 
 /* 消しゴム:座標に触れている注釈を1つ削除 */
 function segDist(x, y, p, q, W, H){
@@ -889,7 +742,7 @@ function eraseAt(x, y){
 const CAP_STAMPS = ["2Q上げ","1Q上げ","2Q下げ","1Q下げ","リュウミンU","新ゴB","ハッピネスEB"];
 let capScale = 1;   // カップの幅倍率(スタンプパレットのスライダーで変更)
 
-/* 手ぶれ補正:ほぼ直線なら直線にスナップ、そうでなければ平滑化 */
+/* 手ぶれ補正:ほぼ直線なら直線にスナップ(縦・横に近ければ完全な縦線・横線に)、そうでなければ平滑化 */
 function smoothLine(pts){
   const W = pageCanvas.width, H = pageCanvas.height;
   let P = pts.map(p=>[p[0]*W, p[1]*H]);
@@ -901,7 +754,13 @@ function smoothLine(pts){
       const d = Math.abs((B[0]-A[0])*(A[1]-q[1]) - (A[0]-q[0])*(B[1]-A[1])) / L;
       if(d > maxd) maxd = d;
     }
-    if(maxd < Math.max(4, H*0.006)) return [pts[0], pts[pts.length-1]];
+    if(maxd < Math.max(6, H*0.009)){
+      const a = pts[0].slice(), b = pts[pts.length-1].slice();
+      const dxp = Math.abs((b[0]-a[0])*W), dyp = Math.abs((b[1]-a[1])*H);
+      if(dyp > 0 && dxp/dyp < 0.2){ const cx=(a[0]+b[0])/2; a[0]=cx; b[0]=cx; }        // 縦線スナップ
+      else if(dxp > 0 && dyp/dxp < 0.2){ const cy=(a[1]+b[1])/2; a[1]=cy; b[1]=cy; }   // 横線スナップ
+      return [a, b];
+    }
   }
   for(let k=0; k<3; k++){
     const Q = P.map(p=>p.slice());
@@ -936,6 +795,11 @@ function addCap(pts){
 
 layer.addEventListener("pointerdown", e=>{
   if(e.target.isContentEditable) return;
+  if(e.pointerType==="touch"){
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if(touches.size === 2){ startPinch(); e.preventDefault(); return; }
+    if(pinch){ e.preventDefault(); return; }
+  }
   const [x,y] = normPos(e);
 
   if(tool==="text" || tool==="stamp" || tool==="box"){
@@ -1009,6 +873,8 @@ layer.addEventListener("pointerdown", e=>{
 });
 
 layer.addEventListener("pointermove", e=>{
+  if(e.pointerType==="touch" && touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if(pinch){ movePinch(); return; }
   const [x,y] = normPos(e);
   const W = pageCanvas.width, H = pageCanvas.height;
   if(circ && circEl){
@@ -1039,11 +905,13 @@ layer.addEventListener("pointermove", e=>{
 });
 
 layer.addEventListener("pointerup", e=>{
+  if(e.pointerType==="touch") touches.delete(e.pointerId);
+  if(pinch){ if(touches.size < 2) endPinch(); return; }
   if(erasing){ erasing = false; return; }
   if(penPts){
     const wasLeader = isLeaderLine; isLeaderLine = false;
     if(penPts.length>2){
-      const pts = wasLeader ? smoothLine(penPts) : penPts;
+      const pts = smoothLine(penPts);
       addAnno({ id:"a"+(idSeq++), type:"pen", points:pts });
       if(wasLeader && armedStamp && CAP_STAMPS.includes(armedStamp)) addCap(pts);
     }
@@ -1098,6 +966,12 @@ layer.addEventListener("pointerup", e=>{
     if(drag.moved) undoStack.push({op:"move", page:currentPage, id:drag.id, x:drag.ox, y:drag.oy});
     drag=null;
   }
+});
+
+layer.addEventListener("pointercancel", e=>{
+  if(e.pointerType==="touch") touches.delete(e.pointerId);
+  if(pinch && touches.size < 2) endPinch();
+  cancelStroke();
 });
 
 layer.addEventListener("dblclick", e=>{
@@ -1202,7 +1076,6 @@ $("btnExport").onclick = async ()=>{
 
       ctx.strokeStyle = ctx.fillStyle = "#d4380d";
       for(const a of (annotations[p]||[])){
-        if(a.type==="check") continue;   // チェックマーカーは書き出さない(画面表示専用)
         if(a.type==="pen"){
           ctx.lineWidth = Math.max(2, vp.width*0.0022);
           ctx.lineCap = ctx.lineJoin = "round";
