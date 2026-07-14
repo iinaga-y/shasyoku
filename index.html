@@ -59,7 +59,7 @@
   #viewerWrap{flex:1;overflow:auto;display:flex;justify-content:center;align-items:flex-start;padding:26px}
   #pageBox{position:relative;box-shadow:0 3px 18px rgba(27,28,30,.22);background:#fff;display:none}
   #pageCanvas{display:block}
-  #annoLayer{position:absolute;inset:0;overflow:hidden}
+  #annoLayer{position:absolute;inset:0;overflow:hidden;touch-action:none}
   #annoLayer.tool-text,#annoLayer.tool-stamp,#annoLayer.tool-line,#annoLayer.tool-circle,#annoLayer.tool-range,#annoLayer.tool-box{cursor:crosshair}
   #annoLayer.tool-erase{cursor:cell}
   #penSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -72,6 +72,13 @@
   #annoLayer.tool-select .anno{cursor:move}
   .anno.boxed{border:1.5px solid var(--aka);padding:3px 4px}
   .anno.boxed.selected{border-style:dashed;border-color:var(--shu)}
+  .anno.check{background:rgba(255,193,7,.28);border:1.5px solid #e6a700;padding:0;min-width:6px;min-height:6px;border-radius:2px;white-space:normal}
+  .anno.check.selected{border-color:var(--shu)}
+  .anno.check .cklabel{position:absolute;left:-1px;top:-17px;background:#e6a700;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:2px;white-space:nowrap;line-height:1.4}
+  #btnScan{width:100%;background:#e6a700;color:#fff;padding:8px;border-radius:4px;letter-spacing:.1em}
+  #scanStatus{font-size:10.5px;color:#8f8d86;margin-top:5px;line-height:1.5;min-height:1em}
+  #btnClearChecks{width:100%;margin-top:5px;background:none;border:1px solid var(--line);color:#8f8d86;padding:6px;border-radius:4px}
+  #btnClearChecks:hover{border-color:#e6a700;color:#e6a700}
   .anno.range{padding:0;min-width:0;min-height:0;border:none;border-radius:0}
   .anno.range::before,.anno.range::after{content:"";position:absolute;background:var(--aka)}
   .anno.range.v{background:linear-gradient(to right,transparent calc(50% - 1.25px),var(--aka) calc(50% - 1.25px),var(--aka) calc(50% + 1.25px),transparent calc(50% + 1.25px))}
@@ -225,7 +232,12 @@
       <div id="dictIndex"></div>
       <div id="dictList"></div>
       <div id="checkBox">
-        <h3>テキスト照合</h3>
+        <h3>自動スキャン</h3>
+        <div class="hint">PDF全ページを統一表記表と照合し、要修正箇所を黄色マーカーで表示します。マーカーは画面表示のみで、書き出しPDFには含まれません。</div>
+        <button id="btnScan">PDFを自動スキャン</button>
+        <div id="scanStatus"></div>
+        <button id="btnClearChecks">マーカーを全て消す</button>
+        <h3 style="margin-top:14px">テキスト照合</h3>
         <div class="hint">セリフのテキストを貼り付けると、×表記(要修正)を自動で洗い出します。</div>
         <textarea id="checkText" placeholder="ここにセリフのテキストを貼り付け"></textarea>
         <button id="btnCheck">×表記をチェック</button>
@@ -288,6 +300,13 @@ $("fileInput").onchange = async e => {
     await renderPage(1);
     toast(`${pageCount}ページを読み込みました`);
     buildThumbs();
+    /* 読み込み後、統一表記の自動チェックを提案 */
+    setTimeout(()=>{
+      if(confirm("統一表記の自動チェックを実行しますか?\n\n画像PDFの場合はOCR(文字認識)で読み取ります。スキャン中も朱入れ作業は続けられます。")){
+        $("tabDict").click();
+        runScan(true);
+      }
+    }, 400);
   }catch(err){
     console.error(err);
     alert("PDFの読み込みに失敗しました:\n" + (err && err.message ? err.message : err) + "\n\niPadの場合は、ファイルの「クイックルック(プレビュー)」ではなく、Safariでこのツールを開いてからPDFを選んでください。");
@@ -327,10 +346,11 @@ function refreshThumbMarks(){
 async function renderPage(p){
   currentPage = p; selectAnno(null);
   const page = await pdfDoc.getPage(p);
-  // 表示エリアの幅にページを収める倍率を100%の基準にする
+  // 表示エリアにページ全体が収まる倍率を100%の基準にする(幅・高さの両方を考慮)
   const base = page.getViewport({scale: 1});
-  const avail = Math.max(200, $("viewerWrap").clientWidth - 52);
-  fitScale = avail / base.width;
+  const availW = Math.max(200, $("viewerWrap").clientWidth - 52);
+  const availH = Math.max(200, $("viewerWrap").clientHeight - 52);
+  fitScale = Math.min(availW/base.width, availH/base.height);
   const vp = page.getViewport({scale: fitScale * zoom});
   pageCanvas.width = vp.width; pageCanvas.height = vp.height;
   pageBox.style.width = vp.width+"px"; pageBox.style.height = vp.height+"px";
@@ -371,6 +391,19 @@ function drawAnnos(){
       if(vert){ div.style.width = tick+"px"; div.style.height = (a.len*H)+"px"; }
       else{ div.style.width = (a.len*H)+"px"; div.style.height = tick+"px"; }
       div.dataset.id = a.id;
+      layer.appendChild(div);
+    } else if(a.type==="check"){
+      const div = document.createElement("div");
+      div.className = "anno check" + (a.id===selectedId ? " selected" : "");
+      div.style.left = (a.x*W)+"px";
+      div.style.top = (a.y*H)+"px";
+      div.style.width = Math.max(8, a.w*W)+"px";
+      div.style.height = Math.max(8, a.h*H)+"px";
+      div.dataset.id = a.id;
+      const lb = document.createElement("span");
+      lb.className = "cklabel";
+      lb.textContent = "×" + a.ng + "→" + a.ok;
+      div.appendChild(lb);
       layer.appendChild(div);
     } else {
       const div = document.createElement("div");
@@ -612,6 +645,165 @@ $("btnCheck").onclick = ()=>{
   $("checkSummary").textContent = hits
     ? `${hits}件の×表記候補が見つかりました。「事」「達」など単漢字の項目は熟語(仕事・発達など)も拾うため、前後の文脈で目視確認してください。`
     : "×表記は見つかりませんでした";
+};
+
+/* ---------------- PDF自動スキャン ---------------- */
+let scanning = false;
+function setScanStatus(msg){ $("scanStatus").textContent = msg; }
+function addCheckMark(p, x, y, w, h, ng, ok){
+  (annotations[p] || (annotations[p]=[])).push({ id:"a"+(idSeq++), type:"check", x, y, w, h, ng, ok });
+}
+function ngList(){
+  const out = [];
+  for(const d of DICT){
+    if(!d.ng) continue;
+    for(let ng of d.ng.split(/[・、\/\s]+/)){
+      ng = ng.trim();
+      if(!ng || ng.includes("○")) continue;
+      out.push({ng, ok:d.ok, note:d.note||""});
+    }
+  }
+  return out;
+}
+function scanTextItems(vp1, tc, p, results){
+  let full = ""; const map = [];
+  for(let i=0; i<tc.items.length; i++){
+    const s = tc.items[i].str || "";
+    for(const ch of s){ full += ch; map.push(i); }
+  }
+  if(!full) return;
+  for(const e of ngList()){
+    let i = 0;
+    while((i = full.indexOf(e.ng, i)) !== -1 && results.length < 600){
+      const it = tc.items[map[i]];
+      const [vx, vy] = vp1.convertToViewportPoint(it.transform[4], it.transform[5]);
+      const fs = Math.hypot(it.transform[2], it.transform[3]) || 12;
+      addCheckMark(p,
+        Math.max(0, vx/vp1.width - 0.002),
+        Math.max(0, (vy - fs)/vp1.height),
+        Math.max(it.width || fs, fs)/vp1.width,
+        (fs*1.5)/vp1.height,
+        e.ng, e.ok);
+      results.push({page:p, ng:e.ng, ok:e.ok});
+      i += e.ng.length;
+    }
+  }
+}
+async function loadTesseract(){
+  if(window.Tesseract) return;
+  await new Promise((res, rej)=>{
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    s.onload = res;
+    s.onerror = ()=> rej(new Error("OCRライブラリを読み込めませんでした。通信環境を確認してください"));
+    document.head.appendChild(s);
+  });
+}
+async function ocrScan(results){
+  setScanStatus("OCRを準備中…(初回は認識データの取得に1〜2分かかることがあります)");
+  await loadTesseract();
+  const worker = await Tesseract.createWorker(["jpn","jpn_vert"], 1, {
+    logger: m => { if(m.status==="recognizing text") setScanStatus(`OCR認識中… ${Math.round(m.progress*100)}%(${ocrScan._p}/${pageCount}ページ)`); }
+  });
+  const ngs = ngList().filter(e => e.ng.length >= 2);  // OCRでは単漢字は誤検出が多いため除外
+  try{
+    for(let p=1; p<=pageCount; p++){
+      ocrScan._p = p;
+      setScanStatus(`OCRスキャン中… ${p}/${pageCount}ページ`);
+      const page = await pdfDoc.getPage(p);
+      const base = page.getViewport({scale:1});
+      const sc = Math.min(2, Math.sqrt(6000000/(base.width*base.height)));
+      const vp = page.getViewport({scale:sc});
+      const c = document.createElement("canvas");
+      c.width = vp.width; c.height = vp.height;
+      await page.render({canvasContext:c.getContext("2d"), viewport:vp}).promise;
+      const {data} = await worker.recognize(c);
+      for(const w of (data.words||[])){
+        const t = (w.text||"").trim();
+        if(!t || !w.bbox) continue;
+        for(const e of ngs){
+          if(t.includes(e.ng) && results.length < 600){
+            addCheckMark(p,
+              w.bbox.x0/vp.width, w.bbox.y0/vp.height,
+              (w.bbox.x1-w.bbox.x0)/vp.width, (w.bbox.y1-w.bbox.y0)/vp.height,
+              e.ng, e.ok);
+            results.push({page:p, ng:e.ng, ok:e.ok});
+          }
+        }
+      }
+      if(p===currentPage) drawAnnos();
+    }
+  } finally {
+    await worker.terminate();
+  }
+}
+function renderScanResults(results){
+  const out = $("checkResult"); out.innerHTML = "";
+  refreshThumbMarks();
+  if(currentPage) drawAnnos();
+  $("tabDict").click();
+  if(!results.length){
+    $("checkSummary").textContent = "×表記は検出されませんでした(OCRの場合、検出漏れの可能性もあるため目視確認は併用してください)";
+    setScanStatus("");
+    toast("スキャン完了:×表記は検出されませんでした");
+    return;
+  }
+  $("checkSummary").textContent = `${results.length}件を検出し、黄色マーカーで表示しました(タップでそのページへ)。マーカーは書き出しPDFには含まれません。`;
+  setScanStatus("");
+  toast(`スキャン完了:${results.length}件の要修正候補を検出しました`);
+  for(const r of results){
+    const div = document.createElement("div");
+    div.className = "hit";
+    div.style.cursor = "pointer";
+    div.innerHTML = `P${r.page}　<b>×${esc(r.ng)}</b> → <span class="fix">○${esc(r.ok)}</span>`;
+    div.onclick = ()=> renderPage(r.page);
+    out.appendChild(div);
+  }
+}
+async function runScan(autoOcr = false){
+  if(!pdfDoc){ toast("先にPDFを開いてください"); return; }
+  if(scanning) return;
+  scanning = true;
+  $("btnScan").disabled = true;
+  try{
+    /* 既存のチェックマーカーをクリアしてから */
+    for(const p in annotations) annotations[p] = annotations[p].filter(a=>a.type!=="check");
+    const results = [];
+    let textFound = false;
+    for(let p=1; p<=pageCount; p++){
+      setScanStatus(`文字データを確認中… ${p}/${pageCount}`);
+      const page = await pdfDoc.getPage(p);
+      const tc = await page.getTextContent();
+      if(tc.items && tc.items.length){
+        textFound = true;
+        scanTextItems(page.getViewport({scale:1}), tc, p, results);
+      }
+    }
+    if(!textFound){
+      const ok = autoOcr || confirm("このPDFには文字データが含まれていません(画像PDF)。\nOCR(文字認識)でスキャンしますか?\n\n・通信環境が必要です(初回は認識データを取得します)\n・漫画の書体や縦書きでは検出漏れ・誤検出があります。補助としてお使いください");
+      if(ok){ await ocrScan(results); }
+      else { setScanStatus(""); scanning=false; $("btnScan").disabled=false; return; }
+    }
+    renderScanResults(results);
+  }catch(err){
+    console.error(err);
+    setScanStatus("");
+    alert("スキャンに失敗しました: " + (err && err.message ? err.message : err));
+  }
+  scanning = false;
+  $("btnScan").disabled = false;
+}
+$("btnScan").onclick = ()=> runScan(false);
+$("btnClearChecks").onclick = ()=>{
+  let n = 0;
+  for(const p in annotations){
+    const before = annotations[p].length;
+    annotations[p] = annotations[p].filter(a=>a.type!=="check");
+    n += before - annotations[p].length;
+  }
+  drawAnnos(); refreshThumbMarks();
+  $("checkResult").innerHTML = ""; $("checkSummary").textContent = "";
+  toast(n ? `${n}件のマーカーを消去しました` : "マーカーはありません");
 };
 
 /* ---------------- 注釈の追加・選択・移動 ---------------- */
@@ -949,6 +1141,13 @@ function applyZoom(pct){
   $("zoomInput").value = pct;
   renderPage(currentPage);
 }
+/* 画面回転やウィンドウサイズ変更でページを再フィット */
+let resizeTm = null;
+window.addEventListener("resize", ()=>{
+  if(!pdfDoc) return;
+  clearTimeout(resizeTm);
+  resizeTm = setTimeout(()=> renderPage(currentPage), 250);
+});
 $("zoomIn").onclick  = ()=> applyZoom(zoom*100 + 25);
 $("zoomOut").onclick = ()=> applyZoom(zoom*100 - 25);
 $("zoomInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); e.target.blur(); } });
@@ -1003,6 +1202,7 @@ $("btnExport").onclick = async ()=>{
 
       ctx.strokeStyle = ctx.fillStyle = "#d4380d";
       for(const a of (annotations[p]||[])){
+        if(a.type==="check") continue;   // チェックマーカーは書き出さない(画面表示専用)
         if(a.type==="pen"){
           ctx.lineWidth = Math.max(2, vp.width*0.0022);
           ctx.lineCap = ctx.lineJoin = "round";
